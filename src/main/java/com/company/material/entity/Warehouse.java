@@ -30,11 +30,16 @@ public class Warehouse {
     @Column(nullable = false, length = 10)
     private String status;
 
+    private Long createdBy;
+
     private LocalDateTime createdAt;
 
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
         if (this.status == null) this.status = "启用";
+        if (this.createdBy == null) {
+            this.createdBy = com.company.material.util.HttpContextUtil.getCurrentUserId();
+        }
     }
 }

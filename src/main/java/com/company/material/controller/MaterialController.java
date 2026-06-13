@@ -1,7 +1,12 @@
 package com.company.material.controller;
 
+import com.company.material.annotation.Audit;
+import com.company.material.annotation.DataPermission;
+import com.company.material.annotation.SensitiveOperation;
+import com.company.material.context.DataPermissionContext;
 import com.company.material.entity.Material;
 import com.company.material.repository.MaterialRepository;
+import com.company.material.util.HttpContextUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +26,7 @@ public class MaterialController {
     private final MaterialRepository materialRepository;
 
     @PostMapping
+    @Audit(operationType = "创建", businessModule = "物料", entityClass = Material.class)
     public ResponseEntity<?> create(@RequestBody Material material) {
         if (material.getMaterialCode() == null || material.getName() == null
                 || material.getCategory() == null || material.getUnit() == null) {
@@ -34,6 +40,7 @@ public class MaterialController {
     }
 
     @GetMapping
+    @DataPermission(checkCreator = true)
     public ResponseEntity<?> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -42,14 +49,35 @@ public class MaterialController {
             @RequestParam(required = false) String keyword) {
         PageRequest pr = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Material> result;
-        if (keyword != null && !keyword.isBlank()) {
-            result = materialRepository.search(keyword, pr);
-        } else if (category != null && !category.isBlank()) {
-            result = materialRepository.findByCategory(category, pr);
-        } else if (status != null && !status.isBlank()) {
-            result = materialRepository.findByStatus(status, pr);
+        DataPermissionContext context = DataPermissionContext.get();
+        Long currentUserId = HttpContextUtil.getCurrentUserId();
+
+        if (context != null && "SELF".equals(context.getDataScopeType()) && currentUserId != null) {
+            if (keyword != null && !keyword.isBlank()) {
+                result = materialRepository.searchByCreatedBy(currentUserId, keyword, pr);
+            } else if (category != null && !category.isBlank()) {
+                result = materialRepository.findByCreatedBy(currentUserId, pr).map(m -> {
+                    if (!category.equals(m.getCategory())) return null;
+                    return m;
+                });
+            } else if (status != null && !status.isBlank()) {
+                result = materialRepository.findByCreatedBy(currentUserId, pr).map(m -> {
+                    if (!status.equals(m.getStatus())) return null;
+                    return m;
+                });
+            } else {
+                result = materialRepository.findByCreatedBy(currentUserId, pr);
+            }
         } else {
-            result = materialRepository.findAll(pr);
+            if (keyword != null && !keyword.isBlank()) {
+                result = materialRepository.search(keyword, pr);
+            } else if (category != null && !category.isBlank()) {
+                result = materialRepository.findByCategory(category, pr);
+            } else if (status != null && !status.isBlank()) {
+                result = materialRepository.findByStatus(status, pr);
+            } else {
+                result = materialRepository.findAll(pr);
+            }
         }
         return ResponseEntity.ok(result);
     }
@@ -77,6 +105,8 @@ public class MaterialController {
     }
 
     @DeleteMapping("/{id}")
+    @SensitiveOperation(message = "删除物料属于敏感操作")
+    @Audit(operationType = "删除", businessModule = "物料", entityClass = Material.class)
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!materialRepository.existsById(id)) {
             return ResponseEntity.notFound().build();

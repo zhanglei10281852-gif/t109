@@ -13,9 +13,13 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
     boolean existsByMaterialCode(String materialCode);
     Page<Material> findByCategory(String category, Pageable pageable);
     Page<Material> findByStatus(String status, Pageable pageable);
+    Page<Material> findByCreatedBy(Long createdBy, Pageable pageable);
 
     @Query("SELECT m FROM Material m WHERE m.name LIKE %:kw% OR m.materialCode LIKE %:kw%")
     Page<Material> search(@Param("kw") String kw, Pageable pageable);
+
+    @Query("SELECT m FROM Material m WHERE m.createdBy = :createdBy AND (m.name LIKE %:kw% OR m.materialCode LIKE %:kw%)")
+    Page<Material> searchByCreatedBy(@Param("createdBy") Long createdBy, @Param("kw") String kw, Pageable pageable);
 
     long countByCategory(String category);
 }

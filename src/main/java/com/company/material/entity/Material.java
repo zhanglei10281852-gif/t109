@@ -39,6 +39,8 @@ public class Material {
     @Column(nullable = false, length = 10)
     private String status;
 
+    private Long createdBy;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -49,6 +51,9 @@ public class Material {
         this.updatedAt = LocalDateTime.now();
         if (this.status == null) this.status = "在用";
         if (this.safetyStock == null) this.safetyStock = 0;
+        if (this.createdBy == null) {
+            this.createdBy = com.company.material.util.HttpContextUtil.getCurrentUserId();
+        }
     }
 
     @PreUpdate

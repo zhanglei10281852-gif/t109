@@ -2,6 +2,8 @@ package com.company.material.controller;
 
 import com.company.material.entity.User;
 import com.company.material.repository.UserRepository;
+import com.company.material.service.LoginLogService;
+import com.company.material.util.HttpContextUtil;
 import com.company.material.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,23 +23,51 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final LoginLogService loginLogService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
         String username = body.get("username");
         String password = body.get("password");
+        String loginIp = HttpContextUtil.getClientIp();
+
         if (username == null || password == null) {
+            loginLogService.logLogin(null, username != null ? username : "unknown", loginIp, false, "用户名和密码不能为空");
             return ResponseEntity.badRequest().body(Map.of("error", "用户名和密码不能为空"));
         }
+
+        Map<String, Object> lockStatus = loginLogService.checkAccountLock(username);
+        if (Boolean.TRUE.equals(lockStatus.get("locked"))) {
+            loginLogService.logLogin(null, username, loginIp, false,
+                    "账号已锁定，剩余" + lockStatus.get("remainingMinutes") + "分钟");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "error", "账号已被临时锁定",
+                    "reason", lockStatus.get("reason"),
+                    "remainingMinutes", lockStatus.get("remainingMinutes"),
+                    "lockEndTime", lockStatus.get("lockEndTime")
+            ));
+        }
+
         User user = userRepository.findByUsername(username).orElse(null);
-        if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
+        if (user == null) {
+            loginLogService.logLogin(null, username, loginIp, false, "用户名不存在");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "用户名或密码错误"));
         }
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            loginLogService.logLogin(user.getId(), username, loginIp, false, "密码错误");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "用户名或密码错误"));
+        }
+
         if (!"启用".equals(user.getStatus())) {
+            loginLogService.logLogin(user.getId(), username, loginIp, false, "账号已被禁用");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "账号已被禁用"));
         }
+
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
+
+        loginLogService.logLogin(user.getId(), username, loginIp, true, null);
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         Map<String, Object> result = new HashMap<>();

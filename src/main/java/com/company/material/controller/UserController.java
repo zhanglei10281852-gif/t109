@@ -1,5 +1,7 @@
 package com.company.material.controller;
 
+import com.company.material.annotation.Audit;
+import com.company.material.annotation.SensitiveOperation;
 import com.company.material.entity.User;
 import com.company.material.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -81,6 +83,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @Audit(operationType = "修改", businessModule = "用户", entityClass = User.class)
     public ResponseEntity<?> update(@RequestAttribute("role") String role, @PathVariable Long id, @RequestBody Map<String, String> body) {
         if (notAdmin(role)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "无权限"));

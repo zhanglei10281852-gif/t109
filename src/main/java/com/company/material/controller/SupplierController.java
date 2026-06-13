@@ -1,7 +1,12 @@
 package com.company.material.controller;
 
+import com.company.material.annotation.Audit;
+import com.company.material.annotation.DataPermission;
+import com.company.material.annotation.SensitiveOperation;
+import com.company.material.context.DataPermissionContext;
 import com.company.material.entity.Supplier;
 import com.company.material.repository.SupplierRepository;
+import com.company.material.util.HttpContextUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +25,7 @@ public class SupplierController {
     private final SupplierRepository supplierRepository;
 
     @PostMapping
+    @Audit(operationType = "创建", businessModule = "供应商", entityClass = Supplier.class)
     public ResponseEntity<?> create(@RequestBody Supplier supplier) {
         if (supplier.getSupplierCode() == null || supplier.getName() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "供应商编码和名称为必填"));
@@ -32,6 +38,7 @@ public class SupplierController {
     }
 
     @GetMapping
+    @DataPermission(checkCreator = true)
     public ResponseEntity<?> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -39,12 +46,31 @@ public class SupplierController {
             @RequestParam(required = false) String category) {
         PageRequest pr = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Supplier> result;
-        if (status != null && !status.isBlank()) {
-            result = supplierRepository.findByStatus(status, pr);
-        } else if (category != null && !category.isBlank()) {
-            result = supplierRepository.findByCategory(category, pr);
+        DataPermissionContext context = DataPermissionContext.get();
+        Long currentUserId = HttpContextUtil.getCurrentUserId();
+
+        if (context != null && "SELF".equals(context.getDataScopeType()) && currentUserId != null) {
+            if (status != null && !status.isBlank()) {
+                result = supplierRepository.findByCreatedBy(currentUserId, pr).map(s -> {
+                    if (!status.equals(s.getStatus())) return null;
+                    return s;
+                });
+            } else if (category != null && !category.isBlank()) {
+                result = supplierRepository.findByCreatedBy(currentUserId, pr).map(s -> {
+                    if (!category.equals(s.getCategory())) return null;
+                    return s;
+                });
+            } else {
+                result = supplierRepository.findByCreatedBy(currentUserId, pr);
+            }
         } else {
-            result = supplierRepository.findAll(pr);
+            if (status != null && !status.isBlank()) {
+                result = supplierRepository.findByStatus(status, pr);
+            } else if (category != null && !category.isBlank()) {
+                result = supplierRepository.findByCategory(category, pr);
+            } else {
+                result = supplierRepository.findAll(pr);
+            }
         }
         return ResponseEntity.ok(result);
     }
