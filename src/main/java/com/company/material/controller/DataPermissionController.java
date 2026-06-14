@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,25 +32,25 @@ public class DataPermissionController {
         }
         UserDataPermission permission = dataPermissionService.getPermission(userId);
         if (permission == null) {
-            return ResponseEntity.ok(Map.of(
-                    "userId", userId,
-                    "dataScopeType", "SELF",
-                    "warehouseIds", List.of()
-            ));
+            Map<String, Object> defaultResult = new HashMap<>();
+            defaultResult.put("userId", userId);
+            defaultResult.put("dataScopeType", "SELF");
+            defaultResult.put("warehouseIds", List.of());
+            return ResponseEntity.ok(defaultResult);
         }
         List<Long> warehouseIdList = List.of();
         if (permission.getWarehouseIds() != null && !permission.getWarehouseIds().isBlank()) {
             warehouseIdList = JsonUtil.fromJson(permission.getWarehouseIds(), new TypeReference<List<Long>>() {});
             if (warehouseIdList == null) warehouseIdList = List.of();
         }
-        return ResponseEntity.ok(Map.of(
-                "id", permission.getId(),
-                "userId", permission.getUserId(),
-                "dataScopeType", permission.getDataScopeType(),
-                "warehouseIds", warehouseIdList,
-                "createdAt", permission.getCreatedAt(),
-                "updatedAt", permission.getUpdatedAt()
-        ));
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", permission.getId());
+        result.put("userId", permission.getUserId());
+        result.put("dataScopeType", permission.getDataScopeType());
+        result.put("warehouseIds", warehouseIdList);
+        result.put("createdAt", permission.getCreatedAt());
+        result.put("updatedAt", permission.getUpdatedAt());
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/users/{userId}")

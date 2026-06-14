@@ -44,12 +44,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a.operationType, COUNT(a) FROM AuditLog a WHERE a.operationTime >= :startTime GROUP BY a.operationType")
     List<Object[]> countByOperationType(@Param("startTime") LocalDateTime startTime);
 
-    @Query("SELECT a.operatorId, a.operatorName, COUNT(a) as cnt FROM AuditLog a WHERE a.operationTime >= :startTime GROUP BY a.operatorId, a.operatorName ORDER BY cnt DESC")
+    @Query("SELECT a.operatorId, a.operatorName, COUNT(a) FROM AuditLog a WHERE a.operationTime >= :startTime GROUP BY a.operatorId, a.operatorName ORDER BY COUNT(a) DESC")
     List<Object[]> countByOperator(@Param("startTime") LocalDateTime startTime, Pageable pageable);
 
-    @Query("SELECT a.operatorId, a.operatorName, COUNT(a) as cnt FROM AuditLog a " +
+    @Query("SELECT a.operatorId, a.operatorName, COUNT(a) FROM AuditLog a " +
            "WHERE a.operationType = '删除' AND a.operationTime >= :startTime " +
-           "GROUP BY a.operatorId, a.operatorName HAVING cnt >= :threshold ORDER BY cnt DESC")
+           "GROUP BY a.operatorId, a.operatorName HAVING COUNT(a) >= :threshold ORDER BY COUNT(a) DESC")
     List<Object[]> findMassDeleteOperations(
             @Param("startTime") LocalDateTime startTime,
             @Param("threshold") int threshold);

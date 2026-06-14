@@ -90,6 +90,7 @@ public class MaterialController {
     }
 
     @PutMapping("/{id}")
+    @Audit(operationType = "修改", businessModule = "物料", entityClass = Material.class)
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Material body) {
         return materialRepository.findById(id).map(m -> {
             if (body.getName() != null) m.setName(body.getName());

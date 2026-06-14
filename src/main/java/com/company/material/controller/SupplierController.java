@@ -83,6 +83,7 @@ public class SupplierController {
     }
 
     @PutMapping("/{id}")
+    @Audit(operationType = "修改", businessModule = "供应商", entityClass = Supplier.class)
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Supplier body) {
         return supplierRepository.findById(id).map(s -> {
             if (body.getName() != null) s.setName(body.getName());

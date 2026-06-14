@@ -25,7 +25,7 @@ public class AuditLogService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void logOperation(String operationType, String businessModule,
                              Long targetId, String targetName, String description,
-                             Object beforeSnapshot, Object afterSnapshot,
+                             String beforeSnapshot, String afterSnapshot,
                              boolean success, String errorMessage) {
         try {
             AuditLog auditLog = new AuditLog();
@@ -37,8 +37,8 @@ public class AuditLogService {
             auditLog.setTargetId(targetId);
             auditLog.setTargetName(targetName);
             auditLog.setDescription(description);
-            auditLog.setBeforeSnapshot(JsonUtil.toJson(beforeSnapshot));
-            auditLog.setAfterSnapshot(JsonUtil.toJson(afterSnapshot));
+            auditLog.setBeforeSnapshot(beforeSnapshot);
+            auditLog.setAfterSnapshot(afterSnapshot);
             auditLog.setRequestIp(HttpContextUtil.getClientIp());
             auditLog.setOperationTime(LocalDateTime.now());
             auditLog.setResult(success ? "成功" : "失败");

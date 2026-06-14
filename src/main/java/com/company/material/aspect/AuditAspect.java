@@ -34,16 +34,17 @@ public class AuditAspect {
 
         Long targetId = extractTargetId(paramNames, args, audit.targetIdParam());
         String targetName = null;
-        Object beforeSnapshot = null;
+        String beforeSnapshotJson = null;
 
         if (targetId != null && audit.entityClass() != Object.class) {
-            beforeSnapshot = entityManager.find(audit.entityClass(), targetId);
-            if (beforeSnapshot != null) {
-                targetName = extractNameField(beforeSnapshot);
+            Object beforeEntity = entityManager.find(audit.entityClass(), targetId);
+            if (beforeEntity != null) {
+                targetName = extractNameField(beforeEntity);
+                beforeSnapshotJson = JsonUtil.toJson(beforeEntity);
             }
         }
 
-        if (beforeSnapshot == null && "创建".equals(audit.operationType())) {
+        if (beforeSnapshotJson == null && "创建".equals(audit.operationType())) {
             for (Object arg : args) {
                 if (arg != null && !arg.getClass().isPrimitive() && !arg.getClass().getName().startsWith("java.")) {
                     targetName = extractNameField(arg);
@@ -55,19 +56,31 @@ public class AuditAspect {
         Object result = null;
         boolean success = true;
         String errorMessage = null;
-        Object afterSnapshot = null;
+        String afterSnapshotJson = null;
 
         try {
             result = joinPoint.proceed();
+            Object responseBody = unwrapResponseEntity(result);
+
+            if (targetId == null && responseBody != null) {
+                targetId = extractIdFromObject(responseBody);
+            }
             if (targetId == null && result != null) {
                 targetId = extractIdFromResult(result);
             }
             if (targetId != null && audit.entityClass() != Object.class) {
                 entityManager.clear();
-                afterSnapshot = entityManager.find(audit.entityClass(), targetId);
-                if (targetName == null && afterSnapshot != null) {
-                    targetName = extractNameField(afterSnapshot);
+                Object afterEntity = entityManager.find(audit.entityClass(), targetId);
+                if (afterEntity != null) {
+                    afterSnapshotJson = JsonUtil.toJson(afterEntity);
+                    if (targetName == null) {
+                        targetName = extractNameField(afterEntity);
+                    }
                 }
+            }
+            if (afterSnapshotJson == null && responseBody != null && audit.entityClass() != Object.class
+                    && responseBody.getClass().equals(audit.entityClass())) {
+                afterSnapshotJson = JsonUtil.toJson(responseBody);
             }
         } catch (Throwable t) {
             success = false;
@@ -84,8 +97,8 @@ public class AuditAspect {
                     targetId,
                     targetName,
                     description,
-                    beforeSnapshot,
-                    afterSnapshot != null ? afterSnapshot : result,
+                    beforeSnapshotJson,
+                    afterSnapshotJson,
                     success,
                     errorMessage
             );
@@ -116,16 +129,39 @@ public class AuditAspect {
 
     private Long extractIdFromResult(Object result) {
         try {
-            if (result instanceof Map) {
-                Map<?, ?> map = (Map<?, ?>) result;
+            Object body = unwrapResponseEntity(result);
+            if (body != null) {
+                return extractIdFromObject(body);
+            }
+            return extractIdFromObject(result);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Object unwrapResponseEntity(Object result) {
+        try {
+            if (result != null && result.getClass().getName().contains("ResponseEntity")) {
+                Method getBody = result.getClass().getMethod("getBody");
+                return getBody.invoke(result);
+            }
+        } catch (Exception e) {
+        }
+        return result;
+    }
+
+    private Long extractIdFromObject(Object obj) {
+        try {
+            if (obj instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) obj;
                 Object id = map.get("id");
                 if (id instanceof Number) {
                     return ((Number) id).longValue();
                 }
             }
-            Field idField = result.getClass().getDeclaredField("id");
+            Field idField = obj.getClass().getDeclaredField("id");
             idField.setAccessible(true);
-            Object id = idField.get(result);
+            Object id = idField.get(obj);
             if (id instanceof Number) {
                 return ((Number) id).longValue();
             }
